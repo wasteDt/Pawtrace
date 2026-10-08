@@ -1,0 +1,210 @@
+/* Pawtrace design tokens v1.0 — light theme */
+:root {
+  /* Font families */
+  --font-family-sans: Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Primitive colors: neutral */
+  --color-white: #ffffff;
+  --color-black: #101817;
+  --color-neutral-25: #fcfdfc;
+  --color-neutral-50: #f7f9f8;
+  --color-neutral-100: #eef2f0;
+  --color-neutral-200: #dce4e1;
+  --color-neutral-300: #c5d0cc;
+  --color-neutral-400: #94a39e;
+  --color-neutral-500: #687873;
+  --color-neutral-600: #4b5c57;
+  --color-neutral-700: #34443f;
+  --color-neutral-800: #23312d;
+  --color-neutral-900: #17231f;
+  --color-neutral-950: #0c1512;
+
+  /* Primitive colors: clinical teal */
+  --color-primary-25: #f2fbf9;
+  --color-primary-50: #e6f7f3;
+  --color-primary-100: #cceee7;
+  --color-primary-200: #9eddd1;
+  --color-primary-300: #69c5b7;
+  --color-primary-400: #38aa9b;
+  --color-primary-500: #168c7f;
+  --color-primary-600: #0f766e;
+  --color-primary-700: #105e58;
+  --color-primary-800: #104b47;
+  --color-primary-900: #0f3f3c;
+  --color-primary-950: #062624;
+
+  /* Primitive colors: warm pet accent */
+  --color-accent-25: #fffaf2;
+  --color-accent-50: #fff4df;
+  --color-accent-100: #ffe7b8;
+  --color-accent-200: #ffd17a;
+  --color-accent-300: #fdb54a;
+  --color-accent-400: #f59b24;
+  --color-accent-500: #d97706;
+  --color-accent-600: #b85d05;
+  --color-accent-700: #92400e;
+  --color-accent-800: #78350f;
+  --color-accent-900: #652d12;
+
+  /* Primitive colors: status */
+  --color-red-50: #fef3f2;
+  --color-red-100: #fee4e2;
+  --color-red-500: #f04438;
+  --color-red-600: #d92d20;
+  --color-red-700: #b42318;
+  --color-amber-50: #fffaeb;
+  --color-amber-100: #fef0c7;
+  --color-amber-500: #f79009;
+  --color-amber-700: #b54708;
+  --color-green-50: #ecfdf3;
+  --color-green-100: #d1fadf;
+  --color-green-500: #12b76a;
+  --color-green-700: #027a48;
+  --color-blue-50: #eff8ff;
+  --color-blue-100: #d1e9ff;
+  --color-blue-500: #2e90fa;
+  --color-blue-700: #175cd3;
+
+  /* Semantic colors */
+  --color-bg-canvas: var(--color-neutral-50);
+  --color-bg-surface: var(--color-white);
+  --color-bg-subtle: var(--color-neutral-100);
+  --color-bg-inverse: var(--color-neutral-900);
+  --color-bg-brand: var(--color-primary-600);
+  --color-bg-brand-hover: var(--color-primary-700);
+  --color-bg-brand-active: var(--color-primary-800);
+  --color-bg-accent-subtle: var(--color-accent-50);
+  --color-bg-disabled: var(--color-neutral-100);
+  --color-bg-overlay: rgb(12 21 18 / 64%);
+
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-tertiary: var(--color-neutral-500);
+  --color-text-placeholder: var(--color-neutral-400);
+  --color-text-inverse: var(--color-white);
+  --color-text-brand: var(--color-primary-700);
+  --color-text-accent: var(--color-accent-700);
+  --color-text-disabled: var(--color-neutral-400);
+  --color-text-link: var(--color-primary-700);
+  --color-text-link-hover: var(--color-primary-800);
+
+  --color-border-default: var(--color-neutral-200);
+  --color-border-strong: var(--color-neutral-300);
+  --color-border-brand: var(--color-primary-600);
+  --color-border-focus: var(--color-primary-500);
+  --color-border-disabled: var(--color-neutral-200);
+
+  --color-status-success-bg: var(--color-green-50);
+  --color-status-success-border: var(--color-green-100);
+  --color-status-success-text: var(--color-green-700);
+  --color-status-warning-bg: var(--color-amber-50);
+  --color-status-warning-border: var(--color-amber-100);
+  --color-status-warning-text: var(--color-amber-700);
+  --color-status-danger-bg: var(--color-red-50);
+  --color-status-danger-border: var(--color-red-100);
+  --color-status-danger-text: var(--color-red-700);
+  --color-status-info-bg: var(--color-blue-50);
+  --color-status-info-border: var(--color-blue-100);
+  --color-status-info-text: var(--color-blue-700);
+
+  /* Typography */
+  --font-size-12: 0.75rem;
+  --font-size-14: 0.875rem;
+  --font-size-16: 1rem;
+  --font-size-18: 1.125rem;
+  --font-size-20: 1.25rem;
+  --font-size-24: 1.5rem;
+  --font-size-30: 1.875rem;
+  --font-size-36: 2.25rem;
+  --font-size-48: 3rem;
+  --font-size-60: 3.75rem;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-heading: 1.3;
+  --line-height-body: 1.6;
+  --line-height-relaxed: 1.75;
+
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+
+  /* Spacing: 4px base grid */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* Radius */
+  --radius-none: 0;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgb(12 21 18 / 6%);
+  --shadow-sm: 0 1px 3px rgb(12 21 18 / 10%), 0 1px 2px rgb(12 21 18 / 6%);
+  --shadow-md: 0 8px 20px rgb(12 21 18 / 10%);
+  --shadow-lg: 0 16px 40px rgb(12 21 18 / 14%);
+  --shadow-overlay: 0 24px 64px rgb(12 21 18 / 22%);
+  --shadow-focus: 0 0 0 3px rgb(22 140 127 / 22%);
+  --shadow-danger-focus: 0 0 0 3px rgb(217 45 32 / 18%);
+
+  /* Borders */
+  --border-width-1: 1px;
+  --border-width-2: 2px;
+
+  /* Controls and layout */
+  --control-height-sm: 2rem;
+  --control-height-md: 2.5rem;
+  --control-height-lg: 3rem;
+  --touch-target-min: 2.75rem;
+  --header-height-desktop: 4rem;
+  --bottom-nav-height-mobile: 4rem;
+  --content-width-reading: 47.5rem;
+  --content-width-page: 75rem;
+  --sidebar-width: 17.5rem;
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-normal: 240ms;
+  --duration-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1.2);
+
+  /* Layering */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-dropdown: 300;
+  --z-overlay: 500;
+  --z-modal: 600;
+  --z-toast: 800;
+  --z-tooltip: 900;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
+}

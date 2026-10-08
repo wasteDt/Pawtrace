@@ -7,24 +7,149 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  CANCELLED
+}
+
+enum VerificationPurpose {
+  LOGIN
+}
+
+enum PetSpecies {
+  CAT
+  DOG
+  OTHER
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum PetStatus {
+  ACTIVE
+  INACTIVE
+  DECEASED
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique @db.VarChar(191)
-  name      String   @db.VarChar(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               Int        @id @default(autoincrement()) @db.UnsignedInt
+  phoneCountryCode String     @default("+86") @map("phone_country_code") @db.VarChar(8)
+  phoneNumber      String     @map("phone_number") @db.VarChar(32)
+  phoneVerifiedAt  DateTime?  @map("phone_verified_at") @db.DateTime(3)
+  status           UserStatus @default(ACTIVE)
+  lastLoginAt      DateTime?  @map("last_login_at") @db.DateTime(3)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt        DateTime?  @map("deleted_at") @db.DateTime(3)
+  profile          UserProfile?
+  sessions         UserSession[]
+  pets             Pet[]
+  histories        PetMedicalHistory[]
+
+  @@unique([phoneCountryCode, phoneNumber])
+  @@index([status, createdAt])
+  @@map("users")
+}
+
+model UserProfile {
+  userId             Int       @id @map("user_id") @db.UnsignedInt
+  nickname           String?   @db.VarChar(50)
+  avatarUrl          String?   @map("avatar_url") @db.VarChar(500)
+  bio                String?   @db.VarChar(500)
+  locationText       String?   @map("location_text") @db.VarChar(100)
+  profileCompletedAt DateTime? @map("profile_completed_at") @db.DateTime(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model VerificationCode {
+  id               Int                 @id @default(autoincrement()) @db.UnsignedInt
+  phoneCountryCode String              @map("phone_country_code") @db.VarChar(8)
+  phoneNumber      String              @map("phone_number") @db.VarChar(32)
+  purpose          VerificationPurpose @default(LOGIN)
+  codeHash         String              @map("code_hash") @db.Char(64)
+  expiresAt        DateTime            @map("expires_at") @db.DateTime(3)
+  consumedAt       DateTime?           @map("consumed_at") @db.DateTime(3)
+  attemptCount     Int                 @default(0) @map("attempt_count") @db.UnsignedTinyInt
+  requestIp        String?             @map("request_ip") @db.VarChar(64)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([phoneCountryCode, phoneNumber, purpose, createdAt])
+  @@map("verification_codes")
+}
+
+model UserSession {
+  id               Int       @id @default(autoincrement()) @db.UnsignedInt
+  userId           Int       @map("user_id") @db.UnsignedInt
+  sessionTokenHash String    @unique @map("session_token_hash") @db.Char(64)
+  csrfTokenHash    String    @map("csrf_token_hash") @db.Char(64)
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  expiresAt        DateTime  @map("expires_at") @db.DateTime(3)
+  revokedAt        DateTime? @map("revoked_at") @db.DateTime(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@map("user_sessions")
 }
 
 model Pet {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(50)
-  species   String   @db.VarChar(20)
-  breed     String   @db.VarChar(80)
-  gender    String   @db.VarChar(10)
-  age       Int
-  weight    Decimal  @db.Decimal(5, 2)
-  status    String   @db.VarChar(20)
-  note      String   @db.VarChar(255)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               Int                 @id @default(autoincrement()) @db.UnsignedInt
+  ownerId          Int                 @map("owner_id") @db.UnsignedInt
+  name             String              @db.VarChar(50)
+  species          PetSpecies
+  customSpecies    String?             @map("custom_species") @db.VarChar(50)
+  breed            String?             @db.VarChar(80)
+  gender           PetGender           @default(UNKNOWN)
+  birthDate        DateTime?           @map("birth_date") @db.Date
+  ageText          String?             @map("age_text") @db.VarChar(30)
+  weightKg         Decimal?            @map("weight_kg") @db.Decimal(6, 2)
+  neutered         Boolean?
+  allergies        String?             @db.Text
+  pastDiseases     String?             @map("past_diseases") @db.Text
+  vaccinationInfo  String?             @map("vaccination_info") @db.Text
+  dewormingInfo    String?             @map("deworming_info") @db.Text
+  note             String?             @db.VarChar(1000)
+  avatarUrl        String?             @map("avatar_url") @db.VarChar(500)
+  status           PetStatus           @default(ACTIVE)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt        DateTime?           @map("deleted_at") @db.DateTime(3)
+  owner            User                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  medicalHistories PetMedicalHistory[]
+
+  @@index([ownerId, status, createdAt])
+  @@map("pets")
+}
+
+model PetMedicalHistory {
+  id                Int       @id @default(autoincrement()) @db.UnsignedInt
+  petId             Int       @map("pet_id") @db.UnsignedInt
+  recordedByUserId  Int       @map("recorded_by_user_id") @db.UnsignedInt
+  recordDate        DateTime  @map("record_date") @db.Date
+  title             String    @db.VarChar(150)
+  description       String    @db.Text
+  hospitalName      String?   @map("hospital_name") @db.VarChar(150)
+  doctorName        String?   @map("doctor_name") @db.VarChar(80)
+  examinationResult String?   @map("examination_result") @db.Text
+  treatment         String?   @db.Text
+  note              String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt         DateTime? @map("deleted_at") @db.DateTime(3)
+  pet               Pet       @relation(fields: [petId], references: [id], onDelete: Restrict)
+  recordedBy        User      @relation(fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([petId, recordDate])
+  @@index([recordedByUserId, createdAt])
+  @@map("pet_medical_histories")
 }
