@@ -35,6 +35,54 @@ enum PetStatus {
   DECEASED
 }
 
+enum ProfessionalType {
+  VETERINARIAN
+  ASSISTANT
+}
+
+enum ProfessionalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum MediaKind {
+  IMAGE
+  DOCUMENT
+}
+
+enum MediaStatus {
+  READY
+  DELETED
+}
+
+enum AdminStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum NotificationType {
+  PROFESSIONAL_APPLICATION_APPROVED
+  PROFESSIONAL_APPLICATION_REJECTED
+  PROFESSIONAL_IDENTITY_REVOKED
+  PROFESSIONAL_IDENTITY_RESTORED
+  SYSTEM
+}
+
+enum AdminNotificationType {
+  PROFESSIONAL_APPLICATION_SUBMITTED
+  PROFESSIONAL_APPLICATION_CANCELLED
+  SYSTEM
+}
+
 model User {
   id               Int        @id @default(autoincrement()) @db.UnsignedInt
   phoneCountryCode String     @default("+86") @map("phone_country_code") @db.VarChar(8)
@@ -49,10 +97,162 @@ model User {
   sessions         UserSession[]
   pets             Pet[]
   histories        PetMedicalHistory[]
+  mediaAssets      MediaAsset[]
+  professional     ProfessionalProfile?
+  applications     ProfessionalApplication[]
+  notifications    UserNotification[]
 
   @@unique([phoneCountryCode, phoneNumber])
   @@index([status, createdAt])
   @@map("users")
+}
+
+model UserNotification {
+  id        Int              @id @default(autoincrement()) @db.UnsignedInt
+  userId    Int              @map("user_id") @db.UnsignedInt
+  type      NotificationType
+  title     String           @db.VarChar(120)
+  content   String           @db.VarChar(1000)
+  link      String?          @db.VarChar(500)
+  readAt    DateTime?        @map("read_at") @db.DateTime(3)
+  createdAt DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  deletedAt DateTime?        @map("deleted_at") @db.DateTime(3)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("user_notifications")
+}
+
+model MediaAsset {
+  id           Int       @id @default(autoincrement()) @db.UnsignedInt
+  uploaderId   Int       @map("uploader_id") @db.UnsignedInt
+  kind         MediaKind
+  storageKey   String    @map("storage_key") @db.VarChar(500)
+  originalName String    @map("original_name") @db.VarChar(255)
+  mimeType     String    @map("mime_type") @db.VarChar(100)
+  sizeBytes    BigInt    @map("size_bytes") @db.UnsignedBigInt
+  status       MediaStatus @default(READY)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  deletedAt    DateTime? @map("deleted_at") @db.DateTime(3)
+  uploader     User      @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  applications ProfessionalApplication[]
+
+  @@index([uploaderId, status, createdAt])
+  @@map("media_assets")
+}
+
+model ProfessionalProfile {
+  id              Int                @id @default(autoincrement()) @db.UnsignedInt
+  userId          Int                @unique @map("user_id") @db.UnsignedInt
+  type            ProfessionalType
+  status          ProfessionalStatus @default(PENDING)
+  realName        String             @map("real_name") @db.VarChar(80)
+  displayName     String             @map("display_name") @db.VarChar(80)
+  organization    String             @db.VarChar(150)
+  yearsOfPractice Int                @map("years_of_practice") @db.UnsignedTinyInt
+  specialties     Json
+  introduction    String?            @db.VarChar(1000)
+  approvedAt      DateTime?          @map("approved_at") @db.DateTime(3)
+  revokedAt       DateTime?          @map("revoked_at") @db.DateTime(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+  user            User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([type, status, createdAt])
+  @@map("professional_profiles")
+}
+
+model ProfessionalApplication {
+  id                Int               @id @default(autoincrement()) @db.UnsignedInt
+  userId            Int               @map("user_id") @db.UnsignedInt
+  requestedType     ProfessionalType  @map("requested_type")
+  realName          String            @map("real_name") @db.VarChar(80)
+  displayName       String            @map("display_name") @db.VarChar(80)
+  organization      String            @db.VarChar(150)
+  yearsOfPractice   Int               @map("years_of_practice") @db.UnsignedTinyInt
+  specialties       Json
+  introduction      String?           @db.VarChar(1000)
+  credentialMediaId Int               @map("credential_media_id") @db.UnsignedInt
+  status            ApplicationStatus @default(PENDING)
+  reviewNote        String?           @map("review_note") @db.VarChar(500)
+  submittedAt       DateTime          @default(now()) @map("submitted_at") @db.DateTime(3)
+  reviewedAt        DateTime?         @map("reviewed_at") @db.DateTime(3)
+  reviewedByAdminId Int?              @map("reviewed_by_admin_id") @db.UnsignedInt
+  createdAt         DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  credentialMedia   MediaAsset        @relation(fields: [credentialMediaId], references: [id], onDelete: Restrict)
+  reviewedBy        AdminUser?        @relation(fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+  @@index([status, submittedAt])
+  @@map("professional_applications")
+}
+
+model AdminUser {
+  id           Int                       @id @default(autoincrement()) @db.UnsignedInt
+  username     String                    @unique @db.VarChar(100)
+  passwordHash String                    @map("password_hash") @db.VarChar(255)
+  displayName  String                    @map("display_name") @db.VarChar(80)
+  status       AdminStatus               @default(ACTIVE)
+  lastLoginAt  DateTime?                 @map("last_login_at") @db.DateTime(3)
+  createdAt    DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime                  @updatedAt @map("updated_at") @db.DateTime(3)
+  sessions     AdminSession[]
+  applications ProfessionalApplication[]
+  auditLogs    AdminAuditLog[]
+  notifications AdminNotification[]
+
+  @@map("admin_users")
+}
+
+model AdminNotification {
+  id          Int                   @id @default(autoincrement()) @db.UnsignedInt
+  adminUserId Int                   @map("admin_user_id") @db.UnsignedInt
+  type        AdminNotificationType
+  title       String                @db.VarChar(120)
+  content     String                @db.VarChar(1000)
+  link        String?               @db.VarChar(500)
+  readAt      DateTime?             @map("read_at") @db.DateTime(3)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+  deletedAt   DateTime?             @map("deleted_at") @db.DateTime(3)
+  adminUser   AdminUser             @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, readAt, createdAt])
+  @@map("admin_notifications")
+}
+
+model AdminSession {
+  id               Int       @id @default(autoincrement()) @db.UnsignedInt
+  adminUserId      Int       @map("admin_user_id") @db.UnsignedInt
+  sessionTokenHash String    @unique @map("session_token_hash") @db.Char(64)
+  csrfTokenHash    String    @map("csrf_token_hash") @db.Char(64)
+  expiresAt        DateTime  @map("expires_at") @db.DateTime(3)
+  revokedAt        DateTime? @map("revoked_at") @db.DateTime(3)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  userAgent        String?   @map("user_agent") @db.VarChar(500)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  adminUser        AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, revokedAt, expiresAt])
+  @@map("admin_sessions")
+}
+
+model AdminAuditLog {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  adminUserId Int       @map("admin_user_id") @db.UnsignedInt
+  action      String    @db.VarChar(80)
+  targetType  String    @map("target_type") @db.VarChar(80)
+  targetId    Int       @map("target_id") @db.UnsignedInt
+  reason      String?   @db.VarChar(1000)
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
 }
 
 model UserProfile {

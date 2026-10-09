@@ -25,6 +25,11 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-pawtrace_local_change_before_production}
       APP_ORIGIN: http://localhost:${APP_PORT:-8081}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      UPLOAD_DIR: /app/uploads
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-pawtrace_admin_demo}
+    volumes:
+      - media_data:/app/uploads
     depends_on:
       mysql: { condition: service_healthy }
     healthcheck:
@@ -48,5 +53,6 @@ services:
     networks: [pawtrace]
 volumes:
   mysql_data:
+  media_data:
 networks:
   pawtrace:
