@@ -28,7 +28,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-访问 <http://localhost:8081>。第一版短信为模拟实现，验证码会直接显示在登录页面。
+访问 <http://localhost:8081>。第一版短信为模拟实现，验证码会直接显示在登录页面。产品、交互与技术文档从[文档导航](docs/文档导航.md)开始阅读。
 
 ## 旧演示数据库
 
