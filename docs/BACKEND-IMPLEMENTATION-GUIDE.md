@@ -1,0 +1,127 @@
+# 后端实现导读（当前版本）
+
+本文只描述仓库中**已经实现**的后端代码，帮助从业务到源码逐层阅读。接口设计稿中的论坛、问诊、关注和医生个人病例库等规划，不等于现有实现。
+
+## 1. 先建立整体认识
+
+当前后端是一个 Node.js 单体 API：Express 负责 HTTP 路由，Prisma Client 读写 MySQL，Multer 将认证材料存到本地上传目录，SSE（Server-Sent Events）向浏览器实时推送消息。普通用户和管理员使用两套独立会话，但共用一个 API 服务。
+
+```text
+浏览器 → Nginx :8081 → /api/* → Express :3000 → Prisma → MySQL
+                       └→ /     → 前端静态站点
+认证材料上传 → Multer → /app/uploads（Docker 命名卷）
+消息产生 → MySQL 持久化 → 当前进程中的 SSE 连接 → 浏览器
+```
+
+主要技术及其用途：
+
+| 技术 | 当前用途 |
+| --- | --- |
+| TypeScript、Node.js 22、ES Module | 编写并运行 API；`tsc` 编译到 `dist/` |
+| Express 5 | 路由、JSON 请求处理、Cookie 响应和统一错误处理 |
+| Prisma 6、MySQL 8.4 | 数据模型、迁移、查询与事务 |
+| Multer 2 | 认证证明材料的单文件上传 |
+| Node.js `crypto` | 模拟验证码、随机会话令牌、SHA-256 摘要、管理员密码 `scrypt` 散列 |
+| SSE、Nginx | 用户端与管理端消息实时推送；Nginx 对流接口关闭缓冲 |
+| Docker Compose | 启动 MySQL、后端、前端和 Nginx；以健康检查约束启动顺序 |
+
+依赖版本以 [`backend/package.json`](../backend/package.json) 为准，容器配置见 [`docker-compose.yml`](../docker-compose.yml)、[`backend/Dockerfile`](../backend/Dockerfile) 和 [`nginx/default.conf`](../nginx/default.conf)。
+
+## 2. 推荐阅读顺序与文件职责
+
+1. [`backend/prisma/schema.prisma`](../backend/prisma/schema.prisma)：先认识实体、状态和关系；已提交的数据库变更在 `backend/prisma/migrations/`。
+2. [`backend/src/context.ts`](../backend/src/context.ts)：认识共享的 `app`、`prisma`、会话校验、上传配置、输入辅助函数和 SSE 连接表。
+3. [`backend/src/index.ts`](../backend/src/index.ts)：看路由模块如何注册、兜底错误如何处理，以及管理员初始化和服务启动。
+4. [`backend/src/routes/health-auth.ts`](../backend/src/routes/health-auth.ts) → [`pets.ts`](../backend/src/routes/pets.ts)：从普通用户登录走到第一个业务数据。
+5. [`media.ts`](../backend/src/routes/media.ts) → [`professional-applications.ts`](../backend/src/routes/professional-applications.ts) → [`admin-professionals.ts`](../backend/src/routes/admin-professionals.ts)：沿着“上传材料—提交认证—管理员审核—身份生效”阅读。
+6. [`user-notifications.ts`](../backend/src/routes/user-notifications.ts)、[`admin-notifications.ts`](../backend/src/routes/admin-notifications.ts)：最后看消息持久化和实时连接。
+
+`index.ts` 是启动入口。它导入各路由文件；这些文件在加载时直接对共享 `app` 调用 `app.get/post/...` 注册接口。`context.ts` 集中放了多个领域共同使用的对象与函数，并非分层服务架构；阅读某个功能时，通常需要同时看该路由和它调用的 `context.ts` 函数。
+
+## 3. 数据模型：谁保存什么
+
+| 模型 | 用途和关键关系 |
+| --- | --- |
+| `User`、`UserProfile` | 手机号唯一的普通账户及昵称等资料；所有新用户默认按普通用户使用功能，专业身份另存于 `ProfessionalProfile` |
+| `VerificationCode`、`UserSession` | 模拟短信验证码与普通用户登录会话 |
+| `Pet`、`PetMedicalHistory` | 用户自己的宠物健康档案、其下的病史记录；这是宠物主人的病史，不是医生病例库 |
+| `MediaAsset` | 上传者、文件元数据与磁盘存储键；当前用于身份认证材料 |
+| `ProfessionalApplication`、`ProfessionalProfile` | 每次认证申请与当前专业身份；申请记录和生效身份分开保存，申请含首次/升级用途及原身份快照 |
+| `AdminUser`、`AdminSession`、`AdminAuditLog` | 管理员账户、独立会话和审核/身份操作日志 |
+| `UserNotification`、`AdminNotification` | 分别面向用户、管理员的收件箱；支持已读时间和软删除时间 |
+
+数据库状态枚举集中在 `schema.prisma`：`VETERINARIAN`/`ASSISTANT` 区分医生与助理；申请可为 `PENDING`、`APPROVED`、`REJECTED`、`CANCELLED`；生效身份可为 `PENDING`、`APPROVED`、`REJECTED`、`REVOKED`。需要注意：专业功能最终应根据**当前 `ProfessionalProfile.status`** 判断权限，不能仅凭历史申请状态；当前路由主要完成认证资料与管理流程，还没有学术论坛等专业功能接口。
+
+## 4. 普通用户：从模拟验证码到宠物病史
+
+### 登录与会话
+
+`POST /api/v1/auth/verification-codes` 只接受 `+86` 和中国大陆手机号格式。后端生成 6 位随机码，只存其摘要，5 分钟有效；同手机号未消费验证码在 60 秒内重复请求会返回 429。**当前是模拟短信：响应里直接返回 `demoCode`，没有接入短信服务。**
+
+`POST /api/v1/auth/login` 读取最新未消费验证码，校验有效期、摘要和尝试次数。成功后在一个 Prisma 事务中消费验证码、查找或创建用户、创建 30 天会话。原始会话令牌通过 HttpOnly Cookie `pawtrace_session` 返回；数据库只存令牌摘要。响应另含 CSRF 令牌，前端在修改类请求的 `x-csrf-token` 中携带。`GET /api/v1/auth/session` 用 Cookie 恢复登录态，并刷新 CSRF 令牌；`POST /api/v1/auth/logout` 将会话标记撤销并清除 Cookie。管理员使用另一套 Cookie 和会话表，不与普通用户混用。
+
+`PATCH /api/v1/me/profile` 完善昵称等资料。`publicMe()` 仅输出前端需要的有限账户字段。健康检查 `GET /api/health` 会执行 `SELECT 1` 检验数据库连接。
+
+### 宠物与病史
+
+`pets.ts` 的查询始终带 `ownerId: session.userId` 和 `deletedAt: null`，因此用户只能读写自己的宠物。创建、修改使用 `petInput()` 校验名称、种类、性别、出生日期或年龄、体重等字段；删除宠物是设置 `INACTIVE` 和 `deletedAt`，不是物理删除。
+
+病史位于 `/api/v1/pets/:petId/histories`：先确认宠物归当前用户，再按日期倒序读取或创建记录。创建时要求记录日期、标题和描述；可补充医院、医生、检查结果、治疗和备注。**当前只实现病史的列表与新增，没有病史详情、编辑或删除接口。**
+
+## 5. 专业身份认证：一条完整业务链
+
+1. 用户通过 `POST /api/v1/media/credentials` 上传证明文件。上传前检查普通用户会话和 CSRF；只允许 JPG、PNG、WebP、PDF，单文件上限 10 MB。Multer 将文件存入上传目录，`MediaAsset` 保存元数据。上传者可通过 `/api/v1/media/:mediaId/access` 查看自己的文件。
+2. `POST /api/v1/professional-applications` 校验认证类别、姓名、机构、从业年限、擅长领域，以及证明文件确属当前用户；同一用户不能同时有两笔待审申请。已认证助理仅可申请升级为宠物医生，医生不可降级或重复认证。服务端根据提交时的身份保存 `INITIAL`/`UPGRADE` 用途与原身份快照。成功后为活跃管理员创建工作消息并通过 SSE 推送。`GET /api/v1/me/professional-profile` 返回当前身份及最近一次申请。
+3. 用户可用 `POST /api/v1/professional-applications/:applicationId/cancel` 撤回自己的待审申请，管理员收到取消工作提醒。撤回升级申请不影响已生效的助理身份。
+4. 管理员在 `/api/v1/admin/professional-applications` 查看待审或按状态筛选，读取详情与申请所用材料；`POST /:applicationId/review` 通过或驳回。驳回必须填写理由。审核事务内核对申请及当前身份，更新申请；通过时 `upsert` 生效身份；同时写审计日志与用户消息。升级审核期间助理身份保持有效，通过后才切换为医生；事务提交后再通过 SSE 推送给申请人。
+5. 管理员可在 `/api/v1/admin/professionals` 查看已认证/已撤销人员，用 `POST /:userId/status` 撤销或恢复身份，必须填写原因。操作同样在事务中更新身份、写审计和用户消息；撤销时还会取消该用户待审申请。
+
+这里的“专业身份”是普通账户的附加资料：获认证后仍可使用宠物主人的功能。`admin-professionals.ts` 还提供简要工作台统计 `/api/v1/admin/dashboard` 和最近 100 条审计日志 `/api/v1/admin/audit-logs`；列表中的手机号会脱敏。
+
+## 6. 管理员登录与双端收件箱
+
+管理员由服务启动时的 `ensureAdminUser()` 初始化：若配置的用户名不存在，则创建一个管理员。密码用带随机盐的 `scrypt` 散列；登录接口为 `/api/v1/admin/auth/login`，会话恢复和退出分别是 `/session`、`/logout`。管理员 Cookie 为 `pawtrace_admin_session`，修改操作需独立的 CSRF 令牌。
+
+两端通知结构相近：
+
+| 能力 | 用户端 | 管理端 |
+| --- | --- | --- |
+| 列表与未读数 | `GET /api/v1/me/notifications` | `GET /api/v1/admin/notifications` |
+| SSE 连接 | `GET .../stream` | `GET .../stream` |
+| 单条已读、全部已读 | `POST .../:id/read`、`POST .../read-all` | 同名路径 |
+| 删除单条、清理已读 | `DELETE .../item/:id`、`DELETE .../read` | 同名路径 |
+
+列表最多取最近 100 条；用户可筛选全部、未读、专业身份或系统消息，管理员可筛选全部、未读、工作或系统消息。删除通过 `deletedAt` **软删除**，查询和未读数排除已删除记录。软删除不会立即缩减数据库物理占用，当前也没有定期清理任务。
+
+SSE 的实现位于 `context.ts` 与两个通知路由中：连接建立时把 `Response` 放入按用户 ID 分组的内存 `Map`；新消息先写数据库，再向当前在线连接发送 `notification` 事件；每 25 秒发送心跳，断连时移除连接。Nginx 对这两个流接口关闭缓冲。**实时推送是通知“有新消息”的通道，持久数据仍在 MySQL；当前连接表仅在单个后端进程内有效，尚无跨实例消息总线。**
+
+## 7. 按代码核对的接口清单
+
+以下路径均以 `/api/v1` 为前缀；`/api/health` 例外。`GET` 主要读取，`POST/PATCH/DELETE` 涉及写入；除登录、获取验证码等公开接口外，需对应身份的 Cookie，受保护写入通常还需 `x-csrf-token`。
+
+| 领域 | 已实现路径（省略 `/api/v1`） |
+| --- | --- |
+| 用户登录与资料 | `POST /auth/verification-codes`、`POST /auth/login`、`GET /auth/session`、`POST /auth/logout`、`PATCH /me/profile` |
+| 宠物 | `GET/POST /pets`、`GET/PATCH/DELETE /pets/:petId` |
+| 宠物病史 | `GET/POST /pets/:petId/histories` |
+| 认证材料 | `POST /media/credentials`、`GET /media/:mediaId/access`、`GET /admin/media/:mediaId/access` |
+| 认证申请 | `GET /me/professional-profile`、`POST /professional-applications`、`POST /professional-applications/:applicationId/cancel` |
+| 用户消息 | `GET /me/notifications`、`GET /me/notifications/stream`、`POST /me/notifications/:notificationId/read`、`POST /me/notifications/read-all`、`DELETE /me/notifications/item/:notificationId`、`DELETE /me/notifications/read` |
+| 管理员登录 | `POST /admin/auth/login`、`GET /admin/auth/session`、`POST /admin/auth/logout` |
+| 管理审核 | `GET /admin/dashboard`、`GET /admin/professional-applications`、`GET /admin/professional-applications/:applicationId`、`POST /admin/professional-applications/:applicationId/review`、`GET /admin/professionals`、`POST /admin/professionals/:userId/status`、`GET /admin/audit-logs` |
+| 管理消息 | `GET /admin/notifications`、`GET /admin/notifications/stream`、`POST /admin/notifications/:notificationId/read`、`POST /admin/notifications/read-all`、`DELETE /admin/notifications/item/:notificationId`、`DELETE /admin/notifications/read` |
+
+常规成功响应包在 `{ "data": ... }` 中，删除或退出等操作常返回 204；错误由 `sendError()` 统一成 `{ "error": { "code", "message", "fields"? } }`。具体字段和分支以各路由为准。
+
+## 8. 本地运行与当前边界
+
+在项目根目录使用 `docker compose up -d --build` 启动；默认入口是 `http://localhost:8081`，健康检查是 `/api/health`。后端镜像启动时先运行 `prisma migrate deploy`，再运行编译后的 `dist/index.js`。本地单独开发可在 `backend/` 使用 `pnpm install`、`pnpm prisma:generate`、`pnpm dev`，但仍需可用的 MySQL、`DATABASE_URL` 等环境变量。`pnpm typecheck` 与 `pnpm build` 可用于静态检查。**以上只是操作说明，编写本文时没有新增接口或修改运行逻辑。**
+
+阅读或继续开发时要特别留意：
+
+- 模拟验证码直接返回客户端，Docker Compose 也提供演示用途的默认管理员账号、密码和认证密钥；部署到真实环境前必须替换，且需要真实短信、限流与安全评估。
+- `GET /auth/session` 会检查用户是否为 `ACTIVE`，但通用的 `currentSession()` 只校验令牌、撤销时间与有效期；其他业务路由大多只调用后者。若将来启用账户禁用功能，应统一补上状态校验。
+- 专业认证类别与材料的对应关系目前主要靠管理员审核，上传接口只按文件 MIME 类型过滤；代码中没有证件真伪识别或严格的文件内容校验。
+- 认证申请提交、撤回、审核与身份撤销目前通过锁定同一用户行串行处理，以避免这些操作间的状态竞争；后续新增身份变更路径也须遵循同一约束。
+- SSE 只覆盖当前进程内的连接。若未来部署多个后端实例，需要共享事件通道；浏览器断线后应靠消息列表补齐遗漏消息。
+- 论坛、学术讨论、健康问答、关注、医生个人病例库、视频上传与实际短信服务尚未在当前后端实现，不应根据数据库设计稿推断它们已经上线。
