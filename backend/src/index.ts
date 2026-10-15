@@ -11,6 +11,7 @@ import './routes/professional-applications.js'
 import './routes/admin-auth.js'
 import './routes/admin-notifications.js'
 import './routes/admin-professionals.js'
+import './routes/social-chat.js'
 
 app.use('/api', (_request, response) => sendError(response, 404, 'RESOURCE_NOT_FOUND', '接口不存在'))
 app.use((cause: unknown, _request: Request, response: Response, _next: unknown) => {

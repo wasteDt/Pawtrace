@@ -33,7 +33,7 @@ export type History = {
   treatment: string | null;
 };
 export type PetDraft = Omit<Pet, "id">;
-export type PublicView = "home" | "pets" | "professional";
+export type PublicView = "home" | "pets" | "professional" | "social";
 export type ProfessionalDraft = {
   requestedType: "VETERINARIAN" | "ASSISTANT";
   realName: string;

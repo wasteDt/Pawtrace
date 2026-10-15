@@ -6,6 +6,7 @@ import HistoryFormModal from "../components/public/HistoryFormModal";
 import HomeView from "../components/public/HomeView";
 import PetsView from "../components/public/PetsView";
 import ProfessionalView from "../components/public/ProfessionalView";
+import SocialHub from "../components/public/SocialHub";
 import LoginView from "../components/auth/LoginView";
 import OnboardingView from "../components/auth/OnboardingView";
 import {
@@ -32,7 +33,11 @@ export default function PublicApp() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [view, setView] = useState<"home" | "pets" | "professional">("home");
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
+  const [view, setView] = useState<"home" | "pets" | "professional" | "social">(
+    "home",
+  );
   const {
     notifications,
     unreadCount,
@@ -97,6 +102,33 @@ export default function PublicApp() {
     const timer = window.setTimeout(() => setMessage(""), 3200);
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  useEffect(() => {
+    if (!session) {
+      setChatUnreadCount(0);
+      return;
+    }
+    async function refreshChats() {
+      try {
+        const result = await json<{ data: { unreadCount: number }[] }>(
+          await fetch("/api/v1/conversations", { credentials: "include" }),
+        );
+        setChatUnreadCount(
+          result.data.reduce((count, item) => count + item.unreadCount, 0),
+        );
+        setChatRefreshKey((key) => key + 1);
+      } catch {
+        /* 聊天暂不可用时不阻断其他功能 */
+      }
+    }
+    void refreshChats();
+    const stream = new EventSource("/api/v1/conversations/stream", {
+      withCredentials: true,
+    });
+    stream.addEventListener("conversation", () => void refreshChats());
+    stream.addEventListener("connected", () => void refreshChats());
+    return () => stream.close();
+  }, [session?.user.id]);
 
   useEffect(() => {
     if (session?.user.profileCompleted && view === "pets") void loadPets();
@@ -481,17 +513,46 @@ export default function PublicApp() {
             首页
           </button>
           <button>健康问答</button>
-          <button>发现</button>
+          <button
+            className={view === "social" ? "active" : ""}
+            onClick={() => setView("social")}
+          >
+            消息与关注{chatUnreadCount > 0 ? ` (${chatUnreadCount})` : ""}
+          </button>
         </nav>
         <div className="top-actions">
           <button className="publish-button">＋ 发布</button>
-          <div className="inbox-menu">
+          <div
+            className="inbox-menu"
+            onMouseEnter={() => {
+              if (
+                window.matchMedia("(hover: hover) and (pointer: fine)").matches
+              ) {
+                setInboxOpen(true);
+                setAccountMenuOpen(false);
+              }
+            }}
+            onMouseLeave={() => setInboxOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setInboxOpen(false);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                setInboxOpen(false);
+            }}
+          >
             <button
               className="inbox-button"
-              aria-label={`收件箱，${unreadCount} 条未读消息`}
+              aria-label={`系统通知，${unreadCount} 条未读`}
               aria-expanded={inboxOpen}
+              aria-haspopup="true"
               onClick={() => {
-                setInboxOpen((open) => !open);
+                setInboxOpen((open) =>
+                  window.matchMedia("(hover: hover) and (pointer: fine)")
+                    .matches
+                    ? true
+                    : !open,
+                );
                 setAccountMenuOpen(false);
               }}
             >
@@ -504,7 +565,7 @@ export default function PublicApp() {
               <div className="inbox-popover">
                 <div className="inbox-head">
                   <div>
-                    <strong>收件箱</strong>
+                    <strong>系统通知</strong>
                     <span>{unreadCount} 条未读</span>
                   </div>
                   <button onClick={() => void readAllNotifications()}>
@@ -586,6 +647,14 @@ export default function PublicApp() {
                 >
                   专业身份认证
                 </button>
+                <button
+                  onClick={() => {
+                    setView("social");
+                    setAccountMenuOpen(false);
+                  }}
+                >
+                  消息与关注
+                </button>
                 <div className="menu-divider" />
                 <button className="logout-button" onClick={() => void logout()}>
                   退出登录
@@ -616,7 +685,7 @@ export default function PublicApp() {
           setHistoryFormOpen={setHistoryFormOpen}
           setView={setView}
         />
-      ) : (
+      ) : view === "professional" ? (
         <ProfessionalView
           professionalState={professionalState}
           professionalDraft={professionalDraft}
@@ -626,6 +695,13 @@ export default function PublicApp() {
           busy={busy}
           cancelProfessionalApplication={cancelProfessionalApplication}
           submitProfessionalApplication={submitProfessionalApplication}
+        />
+      ) : (
+        <SocialHub
+          session={session}
+          openSystemNotifications={() => setNotificationCenterOpen(true)}
+          refreshKey={chatRefreshKey}
+          onUnreadChange={setChatUnreadCount}
         />
       )}
 

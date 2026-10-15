@@ -88,6 +88,11 @@ enum AdminNotificationType {
   SYSTEM
 }
 
+enum MessagePrivacy {
+  FOLLOWERS
+  MUTUAL
+}
+
 model User {
   id               Int        @id @default(autoincrement()) @db.UnsignedInt
   phoneCountryCode String     @default("+86") @map("phone_country_code") @db.VarChar(8)
@@ -106,6 +111,12 @@ model User {
   professional     ProfessionalProfile?
   applications     ProfessionalApplication[]
   notifications    UserNotification[]
+  following        Follow[] @relation("FollowFrom")
+  followers        Follow[] @relation("FollowTo")
+  conversationsA   Conversation[] @relation("ConversationA")
+  conversationsB   Conversation[] @relation("ConversationB")
+  chatMemberships  ConversationParticipant[]
+  chatMessages     ChatMessage[]
 
   @@unique([phoneCountryCode, phoneNumber])
   @@index([status, createdAt])
@@ -268,12 +279,69 @@ model UserProfile {
   avatarUrl          String?   @map("avatar_url") @db.VarChar(500)
   bio                String?   @db.VarChar(500)
   locationText       String?   @map("location_text") @db.VarChar(100)
+  messagePrivacy     MessagePrivacy @default(FOLLOWERS) @map("message_privacy")
   profileCompletedAt DateTime? @map("profile_completed_at") @db.DateTime(3)
   createdAt          DateTime  @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_profiles")
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  followerId  Int      @map("follower_id") @db.UnsignedInt
+  followingId Int      @map("following_id") @db.UnsignedInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  follower    User     @relation("FollowFrom", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("FollowTo", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@map("follows")
+}
+
+model Conversation {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  userAId       Int      @map("user_a_id") @db.UnsignedInt
+  userBId       Int      @map("user_b_id") @db.UnsignedInt
+  lastMessageAt DateTime? @map("last_message_at") @db.DateTime(3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  userA         User     @relation("ConversationA", fields: [userAId], references: [id], onDelete: Restrict)
+  userB         User     @relation("ConversationB", fields: [userBId], references: [id], onDelete: Restrict)
+  participants  ConversationParticipant[]
+  messages      ChatMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId  Int       @map("conversation_id") @db.UnsignedInt
+  userId          Int       @map("user_id") @db.UnsignedInt
+  lastReadMessageId Int     @default(0) @map("last_read_message_id") @db.UnsignedInt
+  muted           Boolean   @default(false)
+  hiddenAt        DateTime? @map("hidden_at") @db.DateTime(3)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, hiddenAt])
+  @@map("conversation_participants")
+}
+
+model ChatMessage {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  conversationId Int      @map("conversation_id") @db.UnsignedInt
+  senderId       Int      @map("sender_id") @db.UnsignedInt
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User     @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId, id])
+  @@map("chat_messages")
 }
 
 model VerificationCode {
