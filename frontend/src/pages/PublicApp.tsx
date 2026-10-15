@@ -284,7 +284,12 @@ export default function PublicApp() {
         }),
       );
       setCredentialFile(null);
-      setMessage("专业身份认证申请已提交");
+      setMessage(
+        professionalState?.profile?.type === "ASSISTANT" &&
+          professionalState.profile.status === "APPROVED"
+          ? "升级申请已提交，审核期间医生助理身份继续有效"
+          : "专业身份认证申请已提交",
+      );
       await loadProfessionalState();
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "认证申请提交失败");
@@ -297,7 +302,11 @@ export default function PublicApp() {
     if (
       !session ||
       !professionalState?.application ||
-      !window.confirm("确定撤销当前认证申请吗？")
+      !window.confirm(
+        professionalState.application.purpose === "UPGRADE"
+          ? "确定撤回升级申请吗？当前医生助理身份不会受影响。"
+          : "确定撤销当前认证申请吗？",
+      )
     )
       return;
     try {
@@ -310,7 +319,11 @@ export default function PublicApp() {
         },
       );
       if (!response.ok) await json(response);
-      setMessage("认证申请已撤销");
+      setMessage(
+        professionalState.application.purpose === "UPGRADE"
+          ? "升级申请已撤回，医生助理身份仍有效"
+          : "认证申请已撤销",
+      );
       await loadProfessionalState();
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "撤销失败");

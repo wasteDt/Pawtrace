@@ -1,4 +1,10 @@
-import type { Dispatch, FormEvent, SetStateAction } from "react";
+import {
+  useEffect,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import {
   type ProfessionalState,
   type ProfessionalDraft,
@@ -26,6 +32,37 @@ export default function ProfessionalView({
   cancelProfessionalApplication,
   submitProfessionalApplication,
 }: Props) {
+  const [upgradeFormOpen, setUpgradeFormOpen] = useState(false);
+  const profile = professionalState?.profile;
+  const application = professionalState?.application;
+  const approved = profile?.status === "APPROVED";
+  const assistant = approved && profile.type === "ASSISTANT";
+  const pending = application?.status === "PENDING";
+  const showForm =
+    !pending &&
+    (!profile ||
+      (!approved && profile.status !== "REVOKED") ||
+      (assistant && upgradeFormOpen));
+
+  useEffect(() => {
+    setUpgradeFormOpen(false);
+  }, [application?.id, application?.status]);
+
+  function openUpgradeForm() {
+    if (!profile || profile.type !== "ASSISTANT") return;
+    setProfessionalDraft({
+      requestedType: "VETERINARIAN",
+      realName: profile.realName,
+      displayName: profile.displayName,
+      organization: profile.organization,
+      yearsOfPractice: String(profile.yearsOfPractice),
+      specialties: profile.specialties.join("，"),
+      introduction: profile.introduction ?? "",
+    });
+    setCredentialFile(null);
+    setUpgradeFormOpen(true);
+  }
+
   return (
     <section className="professional-page">
       <div className="page-heading">
@@ -38,92 +75,138 @@ export default function ProfessionalView({
           <p>认证后仍保留全部宠物主人功能，并解锁对应专业能力。</p>
         </div>
       </div>
-      {professionalState?.profile?.status === "APPROVED" ? (
+      {approved && profile && (
         <div className="status-card approved">
           <span className="status-mark">✓</span>
           <div>
             <p className="eyebrow">VERIFIED</p>
             <h2>
-              {professionalState.profile.type === "VETERINARIAN"
+              {profile.type === "VETERINARIAN"
                 ? "认证宠物医生"
                 : "认证医生助理"}
             </h2>
             <p>
-              {professionalState.profile.displayName}
+              {profile.displayName}
               ，你的专业身份已经生效。
             </p>
+            {assistant && !pending && !upgradeFormOpen && (
+              <button className="secondary-button" onClick={openUpgradeForm}>
+                {application?.purpose === "UPGRADE" &&
+                application.status === "REJECTED"
+                  ? "重新申请升级为宠物医生"
+                  : "申请升级为宠物医生"}
+              </button>
+            )}
           </div>
         </div>
-      ) : professionalState?.application?.status === "PENDING" ? (
+      )}
+      {profile?.status === "REVOKED" && (
+        <div className="status-card pending">
+          <h2>专业身份已撤销</h2>
+          <p>升级申请不可继续；重新认证将通过独立流程办理。</p>
+        </div>
+      )}
+      {assistant &&
+        application?.purpose === "UPGRADE" &&
+        application.status === "REJECTED" &&
+        !upgradeFormOpen && (
+          <div className="review-rejected">
+            上次升级未通过：{application.reviewNote || "请检查资料后重新提交"}
+          </div>
+        )}
+      {pending && application && (
         <div className="status-card pending">
           <span className="status-mark">⌛</span>
           <div>
             <p className="eyebrow">UNDER REVIEW</p>
-            <h2>认证资料审核中</h2>
+            <h2>
+              {application.purpose === "UPGRADE"
+                ? "升级申请审核中"
+                : "认证资料审核中"}
+            </h2>
+            {assistant && (
+              <p>当前医生助理身份继续有效，审核通过后才切换为宠物医生。</p>
+            )}
             <p>
               申请身份：
-              {professionalState.application.requestedType === "VETERINARIAN"
+              {application.requestedType === "VETERINARIAN"
                 ? "宠物医生"
                 : "医生助理"}{" "}
-              · {professionalState.application.organization}
+              · {application.organization}
             </p>
             <p className="status-note">
               证明材料：
-              {professionalState.application.credentialMedia.originalName}
+              {application.credentialMedia.originalName}
             </p>
             <button
               className="danger-link"
               onClick={() => void cancelProfessionalApplication()}
             >
-              撤销申请
+              {application.purpose === "UPGRADE" ? "撤回升级申请" : "撤销申请"}
             </button>
           </div>
         </div>
-      ) : (
+      )}
+      {showForm && (
         <div className="professional-layout">
           <aside className="identity-choice">
-            <button
-              className={
-                professionalDraft.requestedType === "VETERINARIAN"
-                  ? "selected"
-                  : ""
-              }
-              onClick={() =>
-                setProfessionalDraft({
-                  ...professionalDraft,
-                  requestedType: "VETERINARIAN",
-                })
-              }
-            >
-              <strong>宠物医生</strong>
-              <span>需上传执业兽医资格证</span>
-              <small>可回答健康问题、接收个人提问、使用病例库及学术论坛</small>
-            </button>
-            <button
-              className={
-                professionalDraft.requestedType === "ASSISTANT"
-                  ? "selected"
-                  : ""
-              }
-              onClick={() =>
-                setProfessionalDraft({
-                  ...professionalDraft,
-                  requestedType: "ASSISTANT",
-                })
-              }
-            >
-              <strong>医生助理</strong>
-              <span>需上传相关专业学历证明</span>
-              <small>可使用病例库及学术论坛，不提供正式医生回答</small>
-            </button>
+            {assistant ? (
+              <div className="status-note">
+                升级目标：宠物医生。审核期间保留医生助理身份，需重新上传执业兽医资格证。
+              </div>
+            ) : (
+              <>
+                <button
+                  className={
+                    professionalDraft.requestedType === "VETERINARIAN"
+                      ? "selected"
+                      : ""
+                  }
+                  onClick={() =>
+                    setProfessionalDraft({
+                      ...professionalDraft,
+                      requestedType: "VETERINARIAN",
+                    })
+                  }
+                >
+                  <strong>宠物医生</strong>
+                  <span>需上传执业兽医资格证</span>
+                  <small>
+                    可回答健康问题、接收个人提问、使用病例库及学术论坛
+                  </small>
+                </button>
+                <button
+                  className={
+                    professionalDraft.requestedType === "ASSISTANT"
+                      ? "selected"
+                      : ""
+                  }
+                  onClick={() =>
+                    setProfessionalDraft({
+                      ...professionalDraft,
+                      requestedType: "ASSISTANT",
+                    })
+                  }
+                >
+                  <strong>医生助理</strong>
+                  <span>需上传相关专业学历证明</span>
+                  <small>可使用病例库及学术论坛，不提供正式医生回答</small>
+                </button>
+              </>
+            )}
           </aside>
           <form
             className="professional-form"
             onSubmit={submitProfessionalApplication}
           >
             <div>
-              <h2>填写认证资料</h2>
+              <h2>{assistant ? "申请升级为宠物医生" : "填写认证资料"}</h2>
               <p>真实姓名和证明材料仅用于审核，不会在公开主页展示。</p>
+              {assistant && (
+                <p>
+                  通过后身份将切换为宠物医生；驳回或撤回不影响当前医生助理身份。
+                </p>
+              )}
             </div>
             {professionalState?.application?.status === "REJECTED" && (
               <div className="review-rejected">
@@ -238,8 +321,21 @@ export default function ProfessionalView({
               </label>
             </div>
             <button className="primary-button" disabled={busy}>
-              {busy ? "正在上传并提交…" : "提交认证申请"}
+              {busy
+                ? "正在上传并提交…"
+                : assistant
+                  ? "提交升级申请"
+                  : "提交认证申请"}
             </button>
+            {assistant && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setUpgradeFormOpen(false)}
+              >
+                暂不升级
+              </button>
+            )}
           </form>
         </div>
       )}

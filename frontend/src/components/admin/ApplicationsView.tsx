@@ -84,6 +84,9 @@ export default function ApplicationsView({
                     : "医生助理"}
                 </span>
                 <strong>{item.displayName}</strong>
+                <small>
+                  {item.purpose === "UPGRADE" ? "助理升级医生" : "首次认证"}
+                </small>
                 <small>{item.organization}</small>
                 <time>
                   {new Date(item.submittedAt).toLocaleString("zh-CN")}
@@ -98,9 +101,11 @@ export default function ApplicationsView({
                   <p className="eyebrow">APPLICATION #{selected.id}</p>
                   <h2>{selected.displayName}</h2>
                   <p>
-                    {selected.requestedType === "VETERINARIAN"
-                      ? "宠物医生认证"
-                      : "医生助理认证"}
+                    {selected.purpose === "UPGRADE"
+                      ? "医生助理升级宠物医生"
+                      : selected.requestedType === "VETERINARIAN"
+                        ? "宠物医生首次认证"
+                        : "医生助理首次认证"}
                   </p>
                 </div>
                 <span
@@ -116,6 +121,26 @@ export default function ApplicationsView({
                 </span>
               </div>
               <dl className="review-facts">
+                <div>
+                  <dt>提交时身份</dt>
+                  <dd>
+                    {selected.previousType === "ASSISTANT"
+                      ? "认证医生助理"
+                      : "未认证"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>当前身份</dt>
+                  <dd>
+                    {selected.user.professional?.status === "APPROVED"
+                      ? selected.user.professional.type === "VETERINARIAN"
+                        ? "认证宠物医生"
+                        : "认证医生助理"
+                      : selected.user.professional?.status === "REVOKED"
+                        ? "已撤销"
+                        : "未认证"}
+                  </dd>
+                </div>
                 <div>
                   <dt>真实姓名</dt>
                   <dd>{selected.realName}</dd>
@@ -147,7 +172,11 @@ export default function ApplicationsView({
               </dl>
               <div className="credential-review">
                 <div>
-                  <strong>认证证明材料</strong>
+                  <strong>
+                    {selected.purpose === "UPGRADE"
+                      ? "本次执业兽医资格证明"
+                      : "认证证明材料"}
+                  </strong>
                   <span>
                     {selected.credentialMedia.originalName} ·{" "}
                     {(

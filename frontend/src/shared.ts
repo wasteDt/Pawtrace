@@ -55,6 +55,8 @@ export type NotificationFilter = "all" | "unread" | "professional" | "system";
 export type ProfessionalApplication = {
   id: number;
   requestedType: "VETERINARIAN" | "ASSISTANT";
+  purpose: "INITIAL" | "UPGRADE";
+  previousType: "VETERINARIAN" | "ASSISTANT" | null;
   status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
   displayName: string;
   organization: string;
@@ -66,7 +68,12 @@ export type ProfessionalState = {
   profile: {
     type: "VETERINARIAN" | "ASSISTANT";
     status: string;
+    realName: string;
     displayName: string;
+    organization: string;
+    yearsOfPractice: number;
+    specialties: string[];
+    introduction: string | null;
   } | null;
   application: ProfessionalApplication | null;
 };
@@ -84,6 +91,7 @@ export type AdminApplication = ProfessionalApplication & {
     id: number;
     phoneNumber: string;
     profile: { nickname: string | null } | null;
+    professional: { type: "VETERINARIAN" | "ASSISTANT"; status: string } | null;
   };
   credentialMedia: {
     id: number;

@@ -222,7 +222,9 @@ export default function AdminApp() {
     if (
       !window.confirm(
         decision === "APPROVE"
-          ? "确认通过该认证申请？身份将立即生效。"
+          ? selected.purpose === "UPGRADE"
+            ? "确认通过助理升级申请？身份将立即切换为宠物医生。"
+            : "确认通过该认证申请？身份将立即生效。"
           : "确认驳回该认证申请？",
       )
     )

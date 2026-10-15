@@ -54,6 +54,11 @@ enum ApplicationStatus {
   CANCELLED
 }
 
+enum ApplicationPurpose {
+  INITIAL
+  UPGRADE
+}
+
 enum MediaKind {
   IMAGE
   DOCUMENT
@@ -166,6 +171,8 @@ model ProfessionalApplication {
   id                Int               @id @default(autoincrement()) @db.UnsignedInt
   userId            Int               @map("user_id") @db.UnsignedInt
   requestedType     ProfessionalType  @map("requested_type")
+  purpose           ApplicationPurpose @default(INITIAL)
+  previousType      ProfessionalType? @map("previous_type")
   realName          String            @map("real_name") @db.VarChar(80)
   displayName       String            @map("display_name") @db.VarChar(80)
   organization      String            @db.VarChar(150)
