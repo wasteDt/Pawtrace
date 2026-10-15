@@ -412,6 +412,8 @@ export default function PublicApp() {
           body: JSON.stringify({ countryCode: "+86", phoneNumber, code }),
         }),
       );
+      setAccountMenuOpen(false);
+      setInboxOpen(false);
       setSession(result.data);
       setNickname(result.data.user.nickname ?? "");
     } catch (reason) {
@@ -450,11 +452,15 @@ export default function PublicApp() {
   }
 
   async function logout() {
+    setAccountMenuOpen(false);
+    setInboxOpen(false);
+    setNotificationCenterOpen(false);
     await fetch("/api/v1/auth/logout", {
       method: "POST",
       credentials: "include",
     });
     setSession(null);
+    setView("home");
     setCode("");
     setDemoCode("");
     setMessage("");
@@ -606,13 +612,37 @@ export default function PublicApp() {
               </div>
             )}
           </div>
-          <div className="account-menu">
+          <div
+            className="account-menu"
+            onMouseEnter={() => {
+              if (
+                window.matchMedia("(hover: hover) and (pointer: fine)").matches
+              ) {
+                setAccountMenuOpen(true);
+                setInboxOpen(false);
+              }
+            }}
+            onMouseLeave={() => setAccountMenuOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setAccountMenuOpen(false);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                setAccountMenuOpen(false);
+            }}
+          >
             <button
               className="avatar-button"
               aria-label="打开个人菜单"
               aria-expanded={accountMenuOpen}
+              aria-haspopup="true"
               onClick={() => {
-                setAccountMenuOpen((open) => !open);
+                setAccountMenuOpen((open) =>
+                  window.matchMedia("(hover: hover) and (pointer: fine)")
+                    .matches
+                    ? true
+                    : !open,
+                );
                 setInboxOpen(false);
               }}
             >

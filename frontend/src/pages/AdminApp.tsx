@@ -82,6 +82,12 @@ export default function AdminApp() {
   }, []);
 
   useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 5000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
     if (!session) return;
     if (adminPage === "applications") void loadApplications(status);
     if (adminPage === "dashboard") void loadDashboard();
@@ -89,6 +95,11 @@ export default function AdminApp() {
       void loadProfessionals(professionalStatus);
     if (adminPage === "audit") void loadAuditLogs();
   }, [session, status, adminPage, professionalStatus]);
+
+  useEffect(() => {
+    if (session && adminPage === "applications" && adminNotifications[0])
+      void loadApplications(status);
+  }, [adminNotifications[0]?.id]);
 
   useEffect(() => {
     window.history.replaceState(null, "", `/admin#${adminPage}`);
@@ -303,11 +314,33 @@ export default function AdminApp() {
           <span className="admin-badge">管理端</span>
         </div>
         <div>
-          <div className="inbox-menu">
+          <div
+            className="inbox-menu"
+            onMouseEnter={() => {
+              if (window.matchMedia("(hover: hover) and (pointer: fine)").matches)
+                setAdminInboxOpen(true);
+            }}
+            onMouseLeave={() => setAdminInboxOpen(false)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setAdminInboxOpen(false);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                setAdminInboxOpen(false);
+            }}
+          >
             <button
               className="inbox-button"
               aria-label={`管理员通知，${adminUnreadCount} 条未读`}
-              onClick={() => setAdminInboxOpen((open) => !open)}
+              aria-expanded={adminInboxOpen}
+              aria-haspopup="true"
+              onClick={() =>
+                setAdminInboxOpen((open) =>
+                  window.matchMedia("(hover: hover) and (pointer: fine)").matches
+                    ? true
+                    : !open,
+                )
+              }
             >
               ✉
               {adminUnreadCount > 0 && (
